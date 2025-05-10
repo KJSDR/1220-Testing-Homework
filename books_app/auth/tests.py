@@ -35,6 +35,15 @@ def create_user():
     db.session.add(user)
     db.session.commit()
 
+def login(client, username, password):
+    return client.post('/login', data=dict(
+        username=username,
+        password=password
+    ), follow_redirects=True)
+
+def logout(client):
+    return client.get('/logout', follow_redirects=True)
+
 #################################################
 # Tests
 #################################################
@@ -56,28 +65,56 @@ class AuthTests(TestCase):
         # TODO: Write a test for the signup route. It should:
         # - Make a POST request to /signup, sending a username & password
         # - Check that the user now exists in the database
-        pass
+        post_data = {
+            'username': 'new_user',
+            'password': 'new_password'
+        }
+        response = self.app.post('/signup', data=post_data, follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        
+        # Check that user was created
+        user = User.query.filter_by(username='new_user').first()
+        self.assertIsNotNone(user)
 
     def test_signup_existing_user(self):
         # TODO: Write a test for the signup route. It should:
         # - Create a user
         # - Make a POST request to /signup, sending the same username & password
         # - Check that the form is displayed again with an error message
-        pass
+        create_user()
+        
+        post_data = {
+            'username': 'me1',
+            'password': 'password'
+        }
+        response = self.app.post('/signup', data=post_data, follow_redirects=True)
+        response_text = response.get_data(as_text=True)
+        
+        self.assertIn('That username is taken', response_text)
 
     def test_login_correct_password(self):
         # TODO: Write a test for the login route. It should:
         # - Create a user
         # - Make a POST request to /login, sending the created username & password
         # - Check that the "login" button is not displayed on the homepage
-        pass
+        create_user()
+        
+        response = login(self.app, 'me1', 'password')
+        response_text = response.get_data(as_text=True)
+        
+        self.assertNotIn('Log In', response_text)
+        self.assertIn('Log Out', response_text)
 
     def test_login_nonexistent_user(self):
         # TODO: Write a test for the login route. It should:
         # - Make a POST request to /login, sending a username & password
         # - Check that the login form is displayed again, with an appropriate
         #   error message
-        pass
+        response = login(self.app, 'nonexistent_user', 'password')
+        response_text = response.get_data(as_text=True)
+        
+        self.assertIn('No user with that username', response_text)
+        self.assertIn('Log In', response_text)
 
     def test_login_incorrect_password(self):
         # TODO: Write a test for the login route. It should:
@@ -86,7 +123,13 @@ class AuthTests(TestCase):
         #   an incorrect password
         # - Check that the login form is displayed again, with an appropriate
         #   error message
-        pass
+        create_user()
+        
+        response = login(self.app, 'me1', 'wrong_password')
+        response_text = response.get_data(as_text=True)
+        
+        self.assertIn('Password doesn\'t match', response_text)
+        self.assertIn('Log In', response_text)
 
     def test_logout(self):
         # TODO: Write a test for the logout route. It should:
@@ -94,4 +137,14 @@ class AuthTests(TestCase):
         # - Log the user in (make a POST request to /login)
         # - Make a GET request to /logout
         # - Check that the "login" button appears on the homepage
-        pass
+        create_user()
+        
+        # Login
+        login(self.app, 'me1', 'password')
+        
+        # Logout
+        response = logout(self.app)
+        response_text = response.get_data(as_text=True)
+        
+        self.assertIn('Log In', response_text)
+        self.assertNotIn('Log Out', response_text)
